@@ -8,13 +8,21 @@ It only runs when `REX_SESSION` is set.
 
 ## Install
 
-Copy `rex-status.mjs` to `~/.config/opencode/tui-plugins/`, then add it to `~/.config/opencode/cli.json`:
+Clone the repository into `~/.config/opencode/tui-plugins/`:
+
+```sh
+git clone https://github.com/martinmiglio/opencode-rex-status ~/.config/opencode/tui-plugins/opencode-rex-status
+```
+
+Then add the folder to `~/.config/opencode/cli.json`:
 
 ```json
 {
-  "plugins": ["./tui-plugins/rex-status.mjs"]
+  "plugins": ["./tui-plugins/opencode-rex-status"]
 }
 ```
+
+Point `plugins` at the folder, not at `rex-status.mjs`. OpenCode skips plugin entries that name a single file without reporting it.
 
 Requires OpenCode 2.2 or later.
 
