@@ -11,6 +11,7 @@ function harness(extra = []) {
   const reports = []
   const statuses = new Map()
   let active = "root"
+  let tabs
   const sessions = new Map([
     ["root", { id: "root", title: "Root session" }],
     ["other", { id: "other", title: "Other session" }],
@@ -46,6 +47,10 @@ function harness(extra = []) {
     },
     ui: {
       router: { current: () => (active ? { type: "session", sessionID: active } : { type: "home" }) },
+      tabs: {
+        enabled: () => tabs !== undefined,
+        list: () => (tabs ?? []).map((sessionID) => ({ sessionID, active: sessionID === active })),
+      },
     },
   }
 
@@ -56,6 +61,7 @@ function harness(extra = []) {
     dispatch: (type, data) => handlers.get(type)?.({ type, data }),
     renderer: (type) => rendererHandlers.get(type)?.(),
     setActive: (id) => (active = id),
+    setTabs: (ids) => (tabs = ids),
     setStatus: (id, status) => statuses.set(id, status),
   }
 }
@@ -107,8 +113,33 @@ test("skips done when the user is already looking at the session", async () => {
   h.cleanup()
 })
 
+test("ignores sessions this TUI does not show", async () => {
+  const h = harness()
+  h.dispatch("session.execution.started", { sessionID: "other" })
+  h.dispatch("permission.asked", { id: "perm", sessionID: "other" })
+  h.dispatch("session.execution.succeeded", { sessionID: "other" })
+  h.dispatch("session.execution.started", { sessionID: "root" })
+  h.dispatch("session.execution.succeeded", { sessionID: "root" })
+  await settle()
+
+  assert.deepEqual(h.reports.map((r) => r.id), ["root", undefined])
+  h.cleanup()
+})
+
+test("reports sessions open in tabs", async () => {
+  const h = harness()
+  h.setTabs(["root", "other"])
+  h.dispatch("session.execution.started", { sessionID: "other" })
+  h.dispatch("session.execution.succeeded", { sessionID: "other" })
+  await settle()
+
+  assert.deepEqual(h.reports.map((r) => r.id), ["other", undefined])
+  h.cleanup()
+})
+
 test("keeps the root for sessions still working or blocked", async () => {
   const h = harness()
+  h.setTabs(["root", "other"])
   h.dispatch("session.execution.started", { sessionID: "root" })
   h.dispatch("session.execution.started", { sessionID: "other" })
   h.dispatch("session.execution.succeeded", { sessionID: "root" })
@@ -164,6 +195,7 @@ test("clears the record and resets the root once the user focuses the session", 
 test("hashes session IDs that are not valid record IDs", async () => {
   const long = `ses_${"x".repeat(40)}`
   const h = harness([[long, { id: long, title: "Long" }]])
+  h.setActive(long)
   h.dispatch("session.execution.started", { sessionID: long })
   h.dispatch("session.execution.succeeded", { sessionID: long })
   await settle()

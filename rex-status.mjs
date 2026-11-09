@@ -74,6 +74,15 @@ export default {
       return route.type === "session" ? rootOf(route.sessionID) : undefined
     }
 
+    // Every TUI on a server receives every session's events. Like OpenCode's own reports, only
+    // cover the session this TUI shows and its open tabs, so one finished session flags one terminal.
+    function owns(rootID) {
+      if (!rootID) return false
+      if (viewedRoot() === rootID) return true
+      const tabs = context.ui.tabs
+      return tabs?.enabled?.() === true && tabs.list().some((tab) => tab.sessionID === rootID)
+    }
+
     function hasRunningChild(sessionID) {
       return context.data.session
         .family(sessionID)
@@ -113,7 +122,7 @@ export default {
 
     function start(event) {
       const sessionID = event.data.sessionID
-      if (!isRoot(sessionID)) return
+      if (!isRoot(sessionID) || !owns(sessionID)) return
       running.add(sessionID)
       finished.delete(sessionID)
       if (rootOwner === sessionID) rootOwner = undefined
@@ -121,7 +130,7 @@ export default {
 
     function block(id, sessionID) {
       const rootID = rootOf(sessionID)
-      if (rootID) blockers.set(id, rootID)
+      if (owns(rootID)) blockers.set(id, rootID)
     }
 
     function onFocus() {
@@ -141,12 +150,12 @@ export default {
       context.data.on("session.execution.started", start),
       context.data.on("session.execution.succeeded", (event) => {
         const sessionID = event.data.sessionID
-        if (!isRoot(sessionID) || hasRunningChild(sessionID)) return
+        if (!isRoot(sessionID) || !owns(sessionID) || hasRunningChild(sessionID)) return
         finish(sessionID, "done", lastAssistantText(context, sessionID) ?? "Session done")
       }),
       context.data.on("session.execution.failed", (event) => {
         const sessionID = event.data.sessionID
-        if (!isRoot(sessionID)) return
+        if (!isRoot(sessionID) || !owns(sessionID)) return
         finish(sessionID, "error", event.data.error?.message ?? "Session failed")
       }),
       context.data.on("session.execution.interrupted", (event) => {
